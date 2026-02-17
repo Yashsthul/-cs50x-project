@@ -1,128 +1,106 @@
 # -cs50x-project
 
-My Final project for the CS50x course.
+🤖 My Final project for the CS50x course.
 
-Habit Builder with Behavioral Analytics.
+🏗 Habit Builder with Behavioral Analytics.
 
- Video Demo:  <URL HERE>.
+🧠 Video Demo:  <URL HERE>.
 
- Description:
+🔥 Description:
 
-Habit Builder with Behavioral Analytics is a full-stack web application designed to help users develop and maintain positive habits through structured tracking and intelligent data analysis. While many habit tracking applications simply allow users to mark tasks as complete, this project goes further by incorporating behavioral analytics, streak tracking algorithms, and risk detection logic to provide meaningful insights into consistency patterns.
+    Habit Builder with Behavioral Analytics is a full-stack web application designed to help users develop and maintain positive habits through structured tracking and intelligent data analysis. While many habit tracking applications simply allow users to mark tasks as complete, this project goes further by incorporating behavioral analytics, streak tracking algorithms, and risk detection logic to provide meaningful insights into consistency patterns.
 
-The motivation behind this project stems from a common real-world problem: people often begin new habits with enthusiasm but struggle to maintain long-term consistency. Traditional trackers act as digital checklists but rarely provide analytical feedback that helps users understand why they are succeeding or failing. This application addresses that gap by combining tracking, data visualization, and predictive indicators into a unified productivity platform.
+    The motivation behind this project stems from a common real-world problem: people often begin new habits with enthusiasm but struggle to maintain long-term consistency. Traditional trackers act as digital checklists but rarely provide analytical feedback that helps users understand why they are succeeding or failing. This application addresses that gap by combining tracking, data visualization, and predictive indicators into a unified productivity platform.
 
-Core Features
-1. User Authentication
+🔹 Core Features
 
-The application includes a secure user authentication system. Users can register, log in, and log out. Passwords are hashed using Flask’s Werkzeug security utilities before being stored in the database. Session management ensures that each user only accesses their own data. This demonstrates secure authentication practices and session handling learned throughout CS50.
+    User registration and secure login system
 
-2. Habit Management
+    Password hashing using Werkzeug security
 
-Users can create, edit, and delete habits. Each habit includes:
+    Session-based authentication and route protection
 
-Name
+    Create, edit, and delete habits
 
-Category (Health, Productivity, Learning, Fitness, Custom)
+    Assign category and difficulty level to each habit
 
-Difficulty level (1–5)
+    Daily habit completion logging
 
-Creation timestamp
+    Prevention of duplicate daily entries
 
-Habits are stored in a relational SQL database and linked to users via foreign keys to maintain proper data relationships.
+    Current streak calculation
 
-3. Daily Habit Logging
+    Longest streak calculation
 
-Users can mark habits as completed on a daily basis. Each completion entry is stored in a logs table, which records:
+    Completion rate percentage tracking
 
-Habit ID
+    Weekly progress visualization using Chart.js
 
-Date
+    Behavioral risk detection for declining habits
 
-Completion status
+🔹 Habit Attributes
 
-The system prevents duplicate entries for the same habit on the same day. This ensures database consistency and prevents inflated streak calculations.
+    Each habit includes:
 
-4. Streak Tracking System
+    Name
 
-One of the most important features of the application is its streak calculation algorithm. For each habit, the system computes:
+    Category (Health, Productivity, Learning, Fitness, Custom)
 
-Current streak (consecutive completed days)
+    Difficulty level (1–5)
 
-Longest streak achieved
+    Creation timestamp
 
-The streak logic works by sorting habit logs by date and counting consecutive completed entries until a missed day is encountered. This required careful handling of date comparisons and loop control to ensure accurate calculations.
+🔹 Behavioral Analytics Metrics
 
-5. Behavioral Analytics Dashboard
+    The dashboard displays:
 
-The dashboard provides users with insights into their performance over time. Metrics include:
+    Overall completion rate percentage
 
-Overall completion rate percentage
+    Weekly completion trends
 
-Weekly completion visualization
+    Most consistent habit
 
-Most consistent habit
+    Most missed habit
 
-Most missed habit
+    Total active habits
 
-Total active habits
+    Current streak
 
-Data visualization is implemented using JavaScript and Chart.js, which dynamically renders charts based on backend data passed from Flask routes.
+    Longest streak
 
-6. Habit Risk Detection (Advanced Feature)
+    Habit risk warning alerts
 
-A unique feature of this project is the behavioral risk detection system. The application evaluates recent activity patterns and flags habits as “at risk” if:
+🔹 Technical Stack
 
-Two or more days were missed within the last five days
+    Backend
 
-Completion rate falls below a defined threshold (e.g., 40%)
+    Python
 
-This predictive warning system transforms the application from a passive tracker into an active behavioral assistant.
+    Flask
 
-Technical Architecture
-Backend
+    SQLite database
 
-The backend is built using Python and Flask. The application uses:
+    Jinja templating
 
-Flask routing
+    Custom streak-calculation algorithms
 
-Jinja templating
+    Frontend
 
-Session management
+    HTML
 
-SQL queries with joins
+    CSS
 
-Custom Python functions for analytics
+    JavaScript
 
-Database operations are handled using SQLite. The relational schema includes three main tables:
+    Chart.js for visualization
 
-users
+    Security
 
-habits
+    Password hashing
 
-logs
+    Session management
 
-Each table is normalized and connected through foreign key constraints to preserve data integrity.
+    Protected routes
 
-Frontend
-
-The frontend consists of:
-
-HTML templates
-
-CSS styling
-
-JavaScript for interactivity
-
-Chart.js for data visualization
-
-Templates extend a common layout.html file to maintain consistent structure and reduce repetition.
-
-Security Considerations
-
-Password hashing (Werkzeug)
-
-Session-based authentication
-
-Route protection for logged-in users only
+    Input validation
     
