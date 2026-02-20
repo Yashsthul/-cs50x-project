@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, redirect, session, url_for, flash
+from flask import Flask, render_template, request, redirect, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 from datetime import date
+from functools import wraps
+from datetime import timedelta
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -13,6 +15,24 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+# Login required decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# Home route
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+
+# Register
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -38,6 +58,7 @@ def register():
     return render_template("register.html")
 
 
+# Login
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -60,31 +81,49 @@ def login():
     return render_template("login.html")
 
 
+# Logout
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/login")
 
-def login_required(func):
-    from functools import wraps
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect("/login")
-        return func(*args, **kwargs)
-    return wrapper
 
+# Dashboard
 @app.route("/dashboard")
 @login_required
 def dashboard():
     db = get_db()
+
     habits = db.execute(
         "SELECT * FROM habits WHERE user_id = ?",
         (session["user_id"],)
     ).fetchall()
 
-    return render_template("dashboard.html", habits=habits)
+    habits_data = []
 
+    for habit in habits:
+        streak = calculate_streak(habit["id"])
+        completion_rate = calculate_completion_rate(habit["id"])
+        risk = detect_risk(habit["id"])
+        weekly_data = get_weekly_data(habit["id"])
+
+        habits_data.append({
+            "id": habit["id"],
+            "name": habit["name"],
+            "category": habit["category"],
+            "difficulty": habit["difficulty"],
+            "streak": streak,
+            "completion_rate": completion_rate,
+            "risk": risk,
+            "weekly_data": weekly_data
+        })
+
+    return render_template("dashboard.html", habits=habits_data)
+
+
+
+
+# Add habit
 @app.route("/add_habit", methods=["POST"])
 @login_required
 def add_habit():
@@ -101,6 +140,29 @@ def add_habit():
 
     return redirect("/dashboard")
 
+
+
+def get_weekly_data(habit_id):
+    db = get_db()
+    today = date.today()
+    week_data = []
+
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        log = db.execute(
+            "SELECT completed FROM logs WHERE habit_id = ? AND date = ?",
+            (habit_id, day)
+        ).fetchone()
+
+        if log and log["completed"] == 1:
+            week_data.append(1)
+        else:
+            week_data.append(0)
+
+    return week_data
+
+
+# Complete habit
 @app.route("/complete/<int:habit_id>")
 @login_required
 def complete(habit_id):
@@ -122,10 +184,12 @@ def complete(habit_id):
 
     return redirect("/dashboard")
 
+
+# Streak calculation
 def calculate_streak(habit_id):
     db = get_db()
     logs = db.execute(
-        "SELECT date FROM logs WHERE habit_id = ? AND completed = 1 ORDER BY date DESC",
+        "SELECT date FROM logs WHERE habit_id = ? ORDER BY date DESC",
         (habit_id,)
     ).fetchall()
 
@@ -134,7 +198,6 @@ def calculate_streak(habit_id):
 
     for log in logs:
         log_date = date.fromisoformat(log["date"])
-
         if (previous_date - log_date).days <= 1:
             streak += 1
             previous_date = log_date
@@ -142,3 +205,57 @@ def calculate_streak(habit_id):
             break
 
     return streak
+
+def calculate_completion_rate(habit_id):
+    db = get_db()
+
+    total = db.execute(
+        "SELECT COUNT(*) as count FROM logs WHERE habit_id = ?",
+        (habit_id,)
+    ).fetchone()["count"]
+
+    if total == 0:
+        return 0
+
+    completed = db.execute(
+        "SELECT COUNT(*) as count FROM logs WHERE habit_id = ? AND completed = 1",
+        (habit_id,)
+    ).fetchone()["count"]
+
+    return round((completed / total) * 100, 2)
+
+
+def detect_risk(habit_id):
+    db = get_db()
+
+    recent_logs = db.execute(
+        "SELECT completed FROM logs WHERE habit_id = ? ORDER BY date DESC LIMIT 5",
+        (habit_id,)
+    ).fetchall()
+
+    if len(recent_logs) < 3:
+        return False
+
+    missed = sum(1 for log in recent_logs if log["completed"] == 0)
+
+    completion_rate = calculate_completion_rate(habit_id)
+
+    if missed >= 2 or completion_rate < 40:
+        return True
+
+    return False
+
+@app.route("/delete/<int:habit_id>")
+@login_required
+def delete_habit(habit_id):
+    db = get_db()
+    db.execute("DELETE FROM logs WHERE habit_id = ?", (habit_id,))
+    db.execute("DELETE FROM habits WHERE id = ?", (habit_id,))
+    db.commit()
+    return redirect("/dashboard")
+
+
+
+
+if __name__ == "__main__":
+    app.run(debug=True)

@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container">
+
+<h2>Your Habits</h2>
+
+<div class="card">
+<form action="/add_habit" method="post">
+    <input name="name" placeholder="Habit name" required>
+    <input name="category" placeholder="Category">
+    <input name="difficulty" type="number" min="1" max="5" placeholder="Difficulty">
+    <button type="submit">Add Habit</button>
+</form>
+</div>
+
+{% for habit in habits %}
+<div class="card">
+    <h3>{{ habit.name }}</h3>
+
+    <p><strong>Category:</strong> {{ habit.category }}</p>
+    <p><strong>Difficulty:</strong> {{ habit.difficulty }}</p>
+    <p><strong>Current Streak:</strong> {{ habit.streak }} days</p>
+    <p><strong>Completion Rate:</strong> {{ habit.completion_rate }}%</p>
+
+    {% if habit.risk %}
+        <p class="warning">⚠ Habit at Risk!</p>
+    {% endif %}
+
+    <a class="action-link complete-btn" href="/complete/{{ habit.id }}">✅ Complete Today</a>
+    <a class="action-link delete-btn" href="/delete/{{ habit.id }}">🗑 Delete</a>
+
+    <canvas id="chart-{{ habit.id }}" height="120"></canvas>
+
+    <script>
+        const ctx{{ habit.id }} = document.getElementById('chart-{{ habit.id }}');
+        new Chart(ctx{{ habit.id }}, {
+            type: 'bar',
+            data: {
+                labels: ['6d ago','5d ago','4d ago','3d ago','2d ago','1d ago','Today'],
+                datasets: [{
+                    label: 'Completed',
+                    data: {{ habit.weekly_data }},
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 1
+                    }
+                }
+            }
+        });
+    </script>
+</div>
+{% endfor %}
+
+</div>
+{% endblock %}

@@ -3,13 +3,33 @@
 <head>
     <title>Habit Builder</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 </head>
 <body>
     <nav>
+    <a href="/">Habit Builder</a>
+    {% if session.user_id %}
         <a href="/dashboard">Dashboard</a>
         <a href="/logout">Logout</a>
-    </nav>
+    {% else %}
+        <a href="/login">Login</a>
+        <a href="/register">Register</a>
+    {% endif %}
+</nav>
+
     <hr>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
     {% block content %}{% endblock %}
 </body>
 </html>
