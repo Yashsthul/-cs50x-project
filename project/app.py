@@ -1,9 +1,8 @@
 from flask import Flask, render_template, request, redirect, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
-from datetime import date
-from functools import wraps
-from datetime import timedelta
+from datetime import date, timedelta
+import os
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -15,247 +14,186 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-# Login required decorator
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect("/login")
-        return f(*args, **kwargs)
-    return decorated_function
+# Create tables if not exist
+def init_db():
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS habits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            name TEXT,
+            category TEXT,
+            difficulty INTEGER
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            habit_id INTEGER,
+            date TEXT,
+            completed INTEGER
+        )
+    """)
+    conn.commit()
+    conn.close()
 
+init_db()
 
-# Home route
+# ======================
+# ROUTES
+# ======================
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
-
-
-# Register
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username = request.form.get("username")
-        email = request.form.get("email")
-        password = request.form.get("password")
+        username = request.form["username"]
+        password = generate_password_hash(request.form["password"])
 
-        hash_pw = generate_password_hash(password)
-
-        db = get_db()
+        conn = get_db()
         try:
-            db.execute(
-                "INSERT INTO users (username, email, hash) VALUES (?, ?, ?)",
-                (username, email, hash_pw)
-            )
-            db.commit()
+            conn.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+            conn.commit()
+            flash("Registered successfully!")
+            return redirect("/login")
         except:
-            flash("Username or email already exists.")
-            return redirect("/register")
-
-        return redirect("/login")
+            flash("Username already exists")
+        finally:
+            conn.close()
 
     return render_template("register.html")
 
-
-# Login
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
+        username = request.form["username"]
+        password = request.form["password"]
 
-        db = get_db()
-        user = db.execute(
-            "SELECT * FROM users WHERE username = ?",
-            (username,)
-        ).fetchone()
+        conn = get_db()
+        user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        conn.close()
 
-        if user and check_password_hash(user["hash"], password):
+        if user and check_password_hash(user["password"], password):
             session["user_id"] = user["id"]
             return redirect("/dashboard")
-
-        flash("Invalid credentials.")
-        return redirect("/login")
+        else:
+            flash("Invalid credentials")
 
     return render_template("login.html")
 
-
-# Logout
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect("/login")
+    return redirect("/")
 
-
-# Dashboard
 @app.route("/dashboard")
-@login_required
 def dashboard():
-    db = get_db()
+    if "user_id" not in session:
+        return redirect("/login")
 
-    habits = db.execute(
-        "SELECT * FROM habits WHERE user_id = ?",
-        (session["user_id"],)
-    ).fetchall()
+    conn = get_db()
+    habits = conn.execute("SELECT * FROM habits WHERE user_id = ?", (session["user_id"],)).fetchall()
 
-    habits_data = []
+    enriched_habits = []
 
     for habit in habits:
-        streak = calculate_streak(habit["id"])
-        completion_rate = calculate_completion_rate(habit["id"])
-        risk = detect_risk(habit["id"])
-        weekly_data = get_weekly_data(habit["id"])
+        habit_id = habit["id"]
 
-        habits_data.append({
+        today = date.today()
+        week_dates = [(today - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
+
+        weekly_data = []
+        for d in week_dates:
+            log = conn.execute(
+                "SELECT completed FROM logs WHERE habit_id = ? AND date = ?",
+                (habit_id, d)
+            ).fetchone()
+            weekly_data.append(log["completed"] if log else 0)
+
+        streak = 0
+        for d in reversed(week_dates):
+            log = conn.execute(
+                "SELECT completed FROM logs WHERE habit_id = ? AND date = ?",
+                (habit_id, d)
+            ).fetchone()
+            if log and log["completed"] == 1:
+                streak += 1
+            else:
+                break
+
+        completion_rate = int((sum(weekly_data) / 7) * 100)
+
+        enriched_habits.append({
             "id": habit["id"],
             "name": habit["name"],
             "category": habit["category"],
             "difficulty": habit["difficulty"],
+            "weekly_data": weekly_data,
             "streak": streak,
             "completion_rate": completion_rate,
-            "risk": risk,
-            "weekly_data": weekly_data
+            "risk": completion_rate < 40
         })
 
-    return render_template("dashboard.html", habits=habits_data)
+    conn.close()
+    return render_template("dashboard.html", habits=enriched_habits)
 
-
-
-
-# Add habit
 @app.route("/add_habit", methods=["POST"])
-@login_required
 def add_habit():
-    name = request.form.get("name")
-    category = request.form.get("category")
-    difficulty = request.form.get("difficulty")
+    if "user_id" not in session:
+        return redirect("/login")
 
-    db = get_db()
-    db.execute(
+    name = request.form["name"]
+    category = request.form["category"]
+    difficulty = request.form["difficulty"]
+
+    conn = get_db()
+    conn.execute(
         "INSERT INTO habits (user_id, name, category, difficulty) VALUES (?, ?, ?, ?)",
         (session["user_id"], name, category, difficulty)
     )
-    db.commit()
+    conn.commit()
+    conn.close()
 
     return redirect("/dashboard")
 
-
-
-def get_weekly_data(habit_id):
-    db = get_db()
-    today = date.today()
-    week_data = []
-
-    for i in range(6, -1, -1):
-        day = today - timedelta(days=i)
-        log = db.execute(
-            "SELECT completed FROM logs WHERE habit_id = ? AND date = ?",
-            (habit_id, day)
-        ).fetchone()
-
-        if log and log["completed"] == 1:
-            week_data.append(1)
-        else:
-            week_data.append(0)
-
-    return week_data
-
-
-# Complete habit
 @app.route("/complete/<int:habit_id>")
-@login_required
 def complete(habit_id):
-    today = date.today()
+    today = date.today().isoformat()
+    conn = get_db()
 
-    db = get_db()
-
-    existing = db.execute(
+    existing = conn.execute(
         "SELECT * FROM logs WHERE habit_id = ? AND date = ?",
         (habit_id, today)
     ).fetchone()
 
     if not existing:
-        db.execute(
+        conn.execute(
             "INSERT INTO logs (habit_id, date, completed) VALUES (?, ?, 1)",
             (habit_id, today)
         )
-        db.commit()
+        conn.commit()
 
+    conn.close()
     return redirect("/dashboard")
-
-
-# Streak calculation
-def calculate_streak(habit_id):
-    db = get_db()
-    logs = db.execute(
-        "SELECT date FROM logs WHERE habit_id = ? ORDER BY date DESC",
-        (habit_id,)
-    ).fetchall()
-
-    streak = 0
-    previous_date = date.today()
-
-    for log in logs:
-        log_date = date.fromisoformat(log["date"])
-        if (previous_date - log_date).days <= 1:
-            streak += 1
-            previous_date = log_date
-        else:
-            break
-
-    return streak
-
-def calculate_completion_rate(habit_id):
-    db = get_db()
-
-    total = db.execute(
-        "SELECT COUNT(*) as count FROM logs WHERE habit_id = ?",
-        (habit_id,)
-    ).fetchone()["count"]
-
-    if total == 0:
-        return 0
-
-    completed = db.execute(
-        "SELECT COUNT(*) as count FROM logs WHERE habit_id = ? AND completed = 1",
-        (habit_id,)
-    ).fetchone()["count"]
-
-    return round((completed / total) * 100, 2)
-
-
-def detect_risk(habit_id):
-    db = get_db()
-
-    recent_logs = db.execute(
-        "SELECT completed FROM logs WHERE habit_id = ? ORDER BY date DESC LIMIT 5",
-        (habit_id,)
-    ).fetchall()
-
-    if len(recent_logs) < 3:
-        return False
-
-    missed = sum(1 for log in recent_logs if log["completed"] == 0)
-
-    completion_rate = calculate_completion_rate(habit_id)
-
-    if missed >= 2 or completion_rate < 40:
-        return True
-
-    return False
 
 @app.route("/delete/<int:habit_id>")
-@login_required
-def delete_habit(habit_id):
-    db = get_db()
-    db.execute("DELETE FROM logs WHERE habit_id = ?", (habit_id,))
-    db.execute("DELETE FROM habits WHERE id = ?", (habit_id,))
-    db.commit()
+def delete(habit_id):
+    conn = get_db()
+    conn.execute("DELETE FROM habits WHERE id = ?", (habit_id,))
+    conn.execute("DELETE FROM logs WHERE habit_id = ?", (habit_id,))
+    conn.commit()
+    conn.close()
     return redirect("/dashboard")
-
-
-
 
 if __name__ == "__main__":
     app.run(debug=True)
