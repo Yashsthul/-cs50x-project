@@ -1,4 +1,4 @@
-# -cs50x-project
+# -CS50x-PROJECT
 
 🤖 My Final project for the CS50x course.
 

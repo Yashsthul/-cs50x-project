@@ -46,6 +46,17 @@ def init_db():
 
 init_db()
 
+
+from functools import wraps
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated_function
+
 # ======================
 # ROUTES
 # ======================
@@ -147,6 +158,34 @@ def dashboard():
     conn.close()
     return render_template("dashboard.html", habits=enriched_habits)
 
+
+@app.route("/habit/<int:habit_id>")
+@login_required
+def habit_detail(habit_id):
+    conn = get_db()
+
+    habit = conn.execute(
+        "SELECT * FROM habits WHERE id = ? AND user_id = ?",
+        (habit_id, session["user_id"])
+    ).fetchone()
+
+    if not habit:
+        conn.close()
+        return redirect("/dashboard")
+
+    logs = conn.execute(
+        "SELECT * FROM logs WHERE habit_id = ? ORDER BY date DESC",
+        (habit_id,)
+    ).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "habit_detail.html",
+        habit=habit,
+        logs=logs
+    )
+
 @app.route("/add_habit", methods=["POST"])
 def add_habit():
     if "user_id" not in session:
@@ -167,6 +206,7 @@ def add_habit():
     return redirect("/dashboard")
 
 @app.route("/complete/<int:habit_id>")
+@login_required
 def complete(habit_id):
     today = date.today().isoformat()
     conn = get_db()
@@ -187,6 +227,7 @@ def complete(habit_id):
     return redirect("/dashboard")
 
 @app.route("/delete/<int:habit_id>")
+@login_required
 def delete(habit_id):
     conn = get_db()
     conn.execute("DELETE FROM habits WHERE id = ?", (habit_id,))
