@@ -14,7 +14,7 @@
 
 {% for habit in habits %}
 <div class="card">
-    <h3>{{ habit.name }}</h3>
+    <h3><a href="/habit/{{ habit.id }}" class="habit-link">{{ habit.name }}</a></h3>
     <p>Category: {{ habit.category }}</p>
     <p>Difficulty: {{ habit.difficulty }}</p>
     <p>Streak: {{ habit.streak }} days</p>

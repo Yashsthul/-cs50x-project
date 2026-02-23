@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="card">
+    <h2>{{ habit.name }}</h2>
+
+    <p><strong>Category:</strong> {{ habit.category }}</p>
+    <p><strong>Difficulty:</strong> {{ habit.difficulty }}</p>
+    <p><strong>Current Streak:</strong> {{ streak }} days</p>
+    <p><strong>Completion Rate:</strong> {{ completion_rate }}%</p>
+
+    <a href="/complete/{{ habit.id }}" class="big-button">Mark Complete Today</a>
+</div>
+
+{% endblock %}
